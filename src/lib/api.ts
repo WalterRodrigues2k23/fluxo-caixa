@@ -1,7 +1,13 @@
 const API_URL = 'https://fluxo-caixa-backend-yh1m.onrender.com/api';
 
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('fc_token') : null;
+    let token = typeof window !== 'undefined' ? localStorage.getItem('fc_token') : null;
+    
+    if (token && token.length > 200) {
+        token = null;
+        localStorage.removeItem('fc_token');
+        localStorage.removeItem('fc_user');
+    }
     
     const headers = {
         'Content-Type': 'application/json',
