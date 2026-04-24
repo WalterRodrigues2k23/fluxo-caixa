@@ -28,24 +28,29 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
         ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers
     };
-    
-    const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers
-    });
-    
-    if (response.status === 401) {
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('fc_token');
-            localStorage.removeItem('fc_user');
-            window.location.href = '/';
+
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers
+        });
+
+        if (response.status === 401) {
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('fc_token');
+                localStorage.removeItem('fc_user');
+                window.location.href = '/';
+            }
+            return null;
         }
-        return null;
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro na API');
+        return data;
+    } catch (err: any) {
+        console.error('API Error:', err);
+        throw err;
     }
-    
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Erro na API');
-    return data;
 }
 
 export function formatCurrency(amount: number): string {
