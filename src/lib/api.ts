@@ -1,4 +1,4 @@
-const API_URL = '/api';
+const API_URL = 'https://fluxo-caixa-backend-yh1m.onrender.com/api';
 
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('fc_token') : null;

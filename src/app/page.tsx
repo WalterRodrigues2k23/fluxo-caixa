@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { apiCall, formatCurrency } from '@/lib/api';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
@@ -35,7 +35,7 @@ interface Transaction {
     amount: number;
     type: 'income' | 'expense';
     category: string;
-    date: string;
+    date: number;
     obs?: string;
 }
 
@@ -46,9 +46,12 @@ interface Category {
 
 export default function Home() {
     const { user, token, login, logout, isLoading } = useAuth();
-    const [view, setView] = useState<'auth' | 'dashboard' | 'transactions' | 'reports'>('auth');
+    const [view, setView] = useState('dashboard');
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
     const [authError, setAuthError] = useState('');
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
+    const [showUserDropdown, setShowUserDropdown] = useState(false);
     
     const [loginUsername, setLoginUsername] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
@@ -56,28 +59,50 @@ export default function Home() {
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
     const [registerConfirm, setRegisterConfirm] = useState('');
+    const [showPassword, setShowPassword] = useState({ login: false, register: false, confirm: false });
     
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [categories, setCategories] = useState<{ income: Category[]; expense: Category[] }>({ income: [], expense: [] });
     const [initialBalance, setInitialBalance] = useState(0);
     
-    const [transType, setTransType] = useState<'income' | 'expense'>('expense');
+    const [transType, setTransType] = useState<'income' | 'expense'>('income');
     const [transDescription, setTransDescription] = useState('');
     const [transAmount, setTransAmount] = useState('');
     const [transCategory, setTransCategory] = useState('');
     const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
     const [transObs, setTransObs] = useState('');
     const [transId, setTransId] = useState('');
-    const [showModal, setShowModal] = useState(false);
+    const [showTransModal, setShowTransModal] = useState(false);
     
-    const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
+    const [dashboardMonth, setDashboardMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+    const [dashboardYear, setDashboardYear] = useState(String(new Date().getFullYear()));
+    const [dashboardYears, setDashboardYears] = useState<string[]>([]);
+    
+    const [filterSearch, setFilterSearch] = useState('');
+    const [filterMonth, setFilterMonth] = useState('');
+    const [filterYear, setFilterYear] = useState('');
+    const [filterType, setFilterType] = useState('');
+    const [filterCategory, setFilterCategory] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(25);
+    
+    const cashflowChartRef = useRef<ChartJS | null>(null);
+    const balanceChartRef = useRef<ChartJS | null>(null);
+    const categoryChartRef = useRef<ChartJS | null>(null);
+    const indicatorChartRef = useRef<ChartJS | null>(null);
 
     useEffect(() => {
         if (!isLoading && user) {
-            setView('dashboard');
             loadData();
         }
     }, [user, isLoading]);
+
+    useEffect(() => {
+        if (user && transactions.length > 0) {
+            const years = [...new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))];
+            setDashboardYears([...years].sort((a, b) => Number(b) - Number(a)));
+        }
+    }, [user, transactions]);
 
     const showToast = (message: string, type: string = 'info') => {
         setToast({ message, type });
@@ -87,12 +112,13 @@ export default function Home() {
     const loadData = async () => {
         if (!token || !user) return;
         try {
-            const [catsData, transData] = await Promise.all([
-                apiCall(`/categories?userId=${user.id}`),
-                apiCall(`/transactions?userId=${user.id}`),
-            ]);
+            const catsData = await apiCall(`/categories/${user.id}`);
             if (catsData) setCategories(catsData);
-            if (transData) setTransactions(transData);
+            
+            const transData = await apiCall(`/transactions/${user.id}?startDate=2000-01-01`);
+            if (transData) {
+                setTransactions(transData.map((t: any) => ({ ...t, date: new Date(t.date).getTime() })));
+            }
         } catch (err: any) {
             showToast(err.message, 'error');
         }
@@ -102,7 +128,7 @@ export default function Home() {
         e.preventDefault();
         setAuthError('');
         try {
-            const data = await apiCall('/auth', {
+            const data = await apiCall('/login', {
                 method: 'POST',
                 body: JSON.stringify({ username: loginUsername, password: loginPassword }),
             });
@@ -135,6 +161,12 @@ export default function Home() {
         }
     };
 
+    const handleLogout = () => {
+        logout();
+        setView('dashboard');
+        setShowUserDropdown(false);
+    };
+
     const handleSaveTransaction = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -154,7 +186,7 @@ export default function Home() {
                 await apiCall('/transactions', { method: 'POST', body: JSON.stringify(data) });
                 showToast('Transação adicionada!');
             }
-            closeModal();
+            setShowTransModal(false);
             loadData();
         } catch (err: any) {
             showToast(err.message, 'error');
@@ -172,289 +204,543 @@ export default function Home() {
         }
     };
 
+    const openNewModal = () => {
+        setTransId('');
+        setTransType('income');
+        setTransDescription('');
+        setTransAmount('');
+        setTransCategory('');
+        setTransDate(new Date().toISOString().split('T')[0]);
+        setTransObs('');
+        setShowTransModal(true);
+    };
+
     const openEditModal = (t: Transaction) => {
         setTransId(t.id);
         setTransType(t.type);
         setTransDescription(t.description);
         setTransAmount(String(t.amount));
         setTransCategory(t.category);
-        setTransDate(t.date.split('T')[0]);
+        setTransDate(new Date(t.date).toISOString().split('T')[0]);
         setTransObs(t.obs || '');
-        setShowModal(true);
+        setShowTransModal(true);
     };
 
-    const openNewModal = () => {
-        setTransId('');
-        setTransType('expense');
-        setTransDescription('');
-        setTransAmount('');
-        setTransCategory('');
-        setTransDate(new Date().toISOString().split('T')[0]);
-        setTransObs('');
-        setShowModal(true);
-    };
-
-    const closeModal = () => {
-        setShowModal(false);
-        setTransId('');
-    };
-
-    const handleTransTypeChange = (type: 'income' | 'expense') => {
-        setTransType(type);
-        setTransCategory('');
-    };
-
-    const formatDate = (date: string) => {
+    const formatDate = (date: number) => {
         return new Date(date).toLocaleDateString('pt-BR');
     };
 
+    const navigateTo = (v: string) => {
+        setView(v);
+        setSidebarOpen(false);
+        if (v === 'transactions') {
+            setCurrentPage(1);
+        }
+    };
+
     if (isLoading) {
-        return <div style={{ padding: 40, textAlign: 'center' }}>Carregando...</div>;
-    }
-
-    if (!user) {
         return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: 20, background: 'var(--bg-secondary)' }}>
-                <div style={{ width: '100%', maxWidth: 420, padding: 40, background: 'var(--card-bg)', borderRadius: 20, boxShadow: 'var(--shadow-lg)' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: 8, background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Fluxo de Caixa</h1>
-                        <p style={{ color: 'var(--text-secondary)' }}>Controle suas finanças</p>
+            <div className="app-container">
+                <div id="auth-screen" className="screen active" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+                    <div className="loading-overlay">
+                        <div className="spinner"></div>
                     </div>
-
-                    {authMode === 'login' ? (
-                        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Usuário</label>
-                                <input type="text" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} required placeholder="Digite seu usuário" />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Senha</label>
-                                <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required placeholder="Digite sua senha" />
-                            </div>
-                            {authError && <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid var(--accent-danger)', borderRadius: 6, padding: 12, color: 'var(--accent-danger)', fontSize: '0.875rem', textAlign: 'center' }}>{authError}</div>}
-                            <button type="submit" className="btn-primary">Entrar</button>
-                            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                Não tem conta? <button type="button" style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer', fontWeight: 500 }} onClick={() => { setAuthMode('register'); setAuthError(''); }}>Cadastre-se</button>
-                            </p>
-                        </form>
-                    ) : (
-                        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Nome</label>
-                                <input type="text" value={registerName} onChange={(e) => setRegisterName(e.target.value)} required placeholder="Seu nome" />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Usuário</label>
-                                <input type="text" value={registerUsername} onChange={(e) => setRegisterUsername(e.target.value)} required placeholder="Escolha um usuário" />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Senha</label>
-                                <input type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} required placeholder="Mínimo 6 caracteres" />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Confirmar Senha</label>
-                                <input type="password" value={registerConfirm} onChange={(e) => setRegisterConfirm(e.target.value)} required placeholder="Repita a senha" />
-                            </div>
-                            {authError && <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid var(--accent-danger)', borderRadius: 6, padding: 12, color: 'var(--accent-danger)', fontSize: '0.875rem', textAlign: 'center' }}>{authError}</div>}
-                            <button type="submit" className="btn-primary">Cadastrar</button>
-                            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                Já tem conta? <button type="button" style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer', fontWeight: 500 }} onClick={() => { setAuthMode('login'); setAuthError(''); }}>Entrar</button>
-                            </p>
-                        </form>
-                    )}
                 </div>
             </div>
         );
     }
 
-    const incomeCategories = transType === 'income' ? categories.income : categories.expense;
+    if (!user) {
+        return (
+            <div className="app-container">
+                <div id="auth-screen" className="screen active">
+                    <div className="auth-container glass-card">
+                        <div className="auth-header">
+                            <div className="logo">
+                                <svg width="64" height="64" viewBox="0 0 48 48" fill="none">
+                                    <circle cx="24" cy="24" r="20" stroke="url(#gradient)" strokeWidth="2"/>
+                                    <path d="M16 24L22 30L32 18" stroke="url(#gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <defs>
+                                        <linearGradient id="gradient" x1="0" y1="0" x2="48" y2="48">
+                                            <stop offset="0%" stopColor="#00d9ff"/>
+                                            <stop offset="100%" stopColor="#a855f7"/>
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                            </div>
+                            <h1>Fluxo de Caixa</h1>
+                            <p className="subtitle">Gerencie suas finanças com estilo</p>
+                        </div>
 
-    const now = Date.now();
-    const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
-    const periodTransactions = transactions.filter((t) => t.date >= new Date(thirtyDaysAgo).toISOString());
-    const periodIncome = periodTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const periodExpense = periodTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-    const balance = initialBalance + periodIncome - periodExpense;
+                        {authMode === 'login' ? (
+                            <form className="auth-form" onSubmit={handleLogin}>
+                                <div className="form-group">
+                                    <label htmlFor="login-username">Usuário</label>
+                                    <input type="text" id="login-username" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} required placeholder="Digite seu usuário" />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="login-password">Senha</label>
+                                    <div className="password-input">
+                                        <input type={showPassword.login ? 'text' : 'password'} id="login-password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required placeholder="Digite sua senha" />
+                                        <button type="button" className="toggle-password" onClick={() => setShowPassword(p => ({ ...p, login: !p.login }))}>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                                <circle cx="12" cy="12" r="3"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                {authError && <div className="error-message">{authError}</div>}
+                                <button type="submit" className="btn-primary">Entrar</button>
+                                <div className="divider"><span>ou</span></div>
+                                <p className="auth-switch">Não tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setAuthMode('register'); setAuthError(''); }}>Cadastrar</a></p>
+                            </form>
+                        ) : (
+                            <form className="auth-form" onSubmit={handleRegister}>
+                                <div className="form-group">
+                                    <label htmlFor="register-name">Nome Completo</label>
+                                    <input type="text" id="register-name" value={registerName} onChange={(e) => setRegisterName(e.target.value)} required placeholder="Seu nome" />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="register-username">Usuário</label>
+                                    <input type="text" id="register-username" value={registerUsername} onChange={(e) => setRegisterUsername(e.target.value)} required placeholder="Escolha um usuário" />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="register-password">Senha</label>
+                                    <div className="password-input">
+                                        <input type={showPassword.register ? 'text' : 'password'} id="register-password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} required placeholder="Mínimo 6 caracteres" />
+                                        <button type="button" className="toggle-password" onClick={() => setShowPassword(p => ({ ...p, register: !p.register }))}>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                                <circle cx="12" cy="12" r="3"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="register-confirm">Confirmar Senha</label>
+                                    <div className="password-input">
+                                        <input type={showPassword.confirm ? 'text' : 'password'} id="register-confirm" value={registerConfirm} onChange={(e) => setRegisterConfirm(e.target.value)} required placeholder="Repita a senha" />
+                                        <button type="button" className="toggle-password" onClick={() => setShowPassword(p => ({ ...p, confirm: !p.confirm }))}>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                                <circle cx="12" cy="12" r="3"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                {authError && <div className="error-message">{authError}</div>}
+                                <button type="submit" className="btn-primary">Cadastrar</button>
+                                <p className="auth-switch">Já tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setAuthMode('login'); setAuthError(''); }}>Entrar</a></p>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
-    const chartData = {
-        labels: ['Entradas', 'Saídas'],
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    
+    const startDate = new Date(parseInt(dashboardYear), parseInt(dashboardMonth) - 1, 1).getTime();
+    const endDate = new Date(parseInt(dashboardYear), parseInt(dashboardMonth), 0, 23, 59, 59).getTime();
+    
+    const periodTransactions = transactions.filter(t => t.date >= startDate && t.date <= endDate);
+    const totalIncome = periodTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = periodTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const balance = initialBalance + totalIncome - totalExpense;
+
+    const filteredTransactions = transactions.filter(t => {
+        const d = new Date(t.date);
+        const searchMatch = !filterSearch || t.description.toLowerCase().includes(filterSearch.toLowerCase()) || t.category.toLowerCase().includes(filterSearch.toLowerCase());
+        const monthMatch = !filterMonth || d.getMonth() + 1 === parseInt(filterMonth);
+        const yearMatch = !filterYear || d.getFullYear() === parseInt(filterYear);
+        const typeMatch = !filterType || t.type === filterType;
+        const catMatch = !filterCategory || t.category === filterCategory;
+        return searchMatch && monthMatch && yearMatch && typeMatch && catMatch;
+    }).sort((a, b) => b.date - a.date);
+
+    const totalPages = Math.ceil(filteredTransactions.length / perPage);
+    const pageTransactions = filteredTransactions.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+    const cashflowData = {
+        labels: Object.keys(
+            Array.from({ length: Math.ceil((endDate - startDate) / (24 * 60 * 60 * 1000)) }, (_, i) => {
+                const d = new Date(startDate + i * 24 * 60 * 60 * 1000);
+                return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            })
+        ),
         datasets: [
             {
-                label: 'Valor',
-                data: [periodIncome, periodExpense],
-                backgroundColor: ['#10b981', '#ef4444'],
+                label: 'Entradas',
+                data: Array.from({ length: Math.ceil((endDate - startDate) / (24 * 60 * 60 * 1000)) }, (_, i) => {
+                    const dayStart = startDate + i * 24 * 60 * 60 * 1000;
+                    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+                    return periodTransactions.filter(t => t.date >= dayStart && t.date < dayEnd && t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                }),
+                backgroundColor: '#10b981',
+                borderRadius: 4,
+            },
+            {
+                label: 'Saídas',
+                data: Array.from({ length: Math.ceil((endDate - startDate) / (24 * 60 * 60 * 1000)) }, (_, i) => {
+                    const dayStart = startDate + i * 24 * 60 * 60 * 1000;
+                    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+                    return periodTransactions.filter(t => t.date >= dayStart && t.date < dayEnd && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                }),
+                backgroundColor: '#ef4444',
+                borderRadius: 4,
             },
         ],
     };
 
-    const recentTransactions = transactions.slice(0, 5);
+    const categoryData = {
+        labels: [...new Set(periodTransactions.map(t => t.category))],
+        datasets: [
+            {
+                label: 'Entradas',
+                data: [...new Set(periodTransactions.map(t => t.category))].map(cat => 
+                    periodTransactions.filter(t => t.category === cat && t.type === 'income').reduce((s, t) => s + t.amount, 0)
+                ),
+                backgroundColor: '#10b981',
+            },
+            {
+                label: 'Saídas',
+                data: [...new Set(periodTransactions.map(t => t.category))].map(cat => 
+                    periodTransactions.filter(t => t.category === cat && t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+                ),
+                backgroundColor: '#ef4444',
+            },
+        ],
+    };
+
+    const incomeCategories = transType === 'income' ? categories.income : categories.expense;
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg-secondary)' }}>
-            <nav style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border-color)', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Fluxo de Caixa</h2>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => setView('dashboard')} style={{ background: view === 'dashboard' ? 'var(--bg-tertiary)' : 'transparent', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', color: view === 'dashboard' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>Dashboard</button>
-                        <button onClick={() => setView('transactions')} style={{ background: view === 'transactions' ? 'var(--bg-tertiary)' : 'transparent', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', color: view === 'transactions' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>Transações</button>
+        <div className="app-container">
+            <div id="app-screen" className="screen active">
+                <header className="app-header glass-card">
+                    <div className="header-left">
+                        <button className="icon-btn" id="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="3" y1="6" x2="21" y2="6"/>
+                                <line x1="3" y1="12" x2="21" y2="12"/>
+                                <line x1="3" y1="18" x2="21" y2="18"/>
+                            </svg>
+                        </button>
+                        <h1 className="app-title">Fluxo de Caixa Ideal</h1>
                     </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{user.name}</span>
-                    <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Sair</button>
-                </div>
-            </nav>
-
-            <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-                {view === 'dashboard' && (
-                    <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
-                            <div className="card">
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 4 }}>Saldo Inicial</p>
-                                <input type="number" value={initialBalance} onChange={(e) => setInitialBalance(parseFloat(e.target.value) || 0)} style={{ width: '100%', marginTop: 8 }} placeholder="Saldo inicial" />
-                            </div>
-                            <div className="card">
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 4 }}>Entradas (30 dias)</p>
-                                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--accent-success)' }}>{formatCurrency(periodIncome)}</p>
-                            </div>
-                            <div className="card">
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 4 }}>Saídas (30 dias)</p>
-                                <p style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--accent-danger)' }}>{formatCurrency(periodExpense)}</p>
+                    <div className="header-right">
+                        <div className="user-menu">
+                            <button className="user-btn" onClick={() => setShowUserDropdown(!showUserDropdown)}>
+                                <div className="user-avatar">{user.name?.charAt(0).toUpperCase()}</div>
+                                <span>{user.name}</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </button>
+                            <div className={`user-dropdown glass-card ${showUserDropdown ? '' : 'hidden'}`}>
+                                <button className="dropdown-item" onClick={handleLogout}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                        <polyline points="16 17 21 12 16 7"/>
+                                        <line x1="21" y1="12" x2="9" y2="12"/>
+                                    </svg>
+                                    Sair
+                                </button>
                             </div>
                         </div>
+                    </div>
+                </header>
 
-                        <div className="card" style={{ marginBottom: 24 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                <h3 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Balanço</h3>
-                                <p style={{ fontSize: '1.5rem', fontWeight: 700, color: balance >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{formatCurrency(balance)}</p>
-                            </div>
-                            <div style={{ height: 200 }}>
-                                <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }} />
-                            </div>
-                        </div>
+                <aside id="sidebar" className={`sidebar glass-card ${sidebarOpen ? 'open' : ''}`}>
+                    <nav className="sidebar-nav">
+                        <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => navigateTo('dashboard')}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="3" width="7" height="7"/>
+                                <rect x="14" y="3" width="7" height="7"/>
+                                <rect x="14" y="14" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/>
+                            </svg>
+                            <span>Dashboard</span>
+                        </button>
+                        <button className={`nav-item ${view === 'transactions' ? 'active' : ''}`} onClick={() => navigateTo('transactions')}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="12" y1="1" x2="12" y2="23"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                            <span>Transações</span>
+                        </button>
+                    </nav>
+                </aside>
+                <div className={`sidebar-overlay ${sidebarOpen ? '' : ''}`} onClick={() => setSidebarOpen(false)} />
 
-                        <div className="card">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                <h3 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Transações Recentes</h3>
-                                <button onClick={openNewModal} className="btn-primary" style={{ padding: '10px 16px', fontSize: '0.875rem' }}>+ Nova Transação</button>
-                            </div>
-                            {recentTransactions.length === 0 ? (
-                                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>Nenhuma transação</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    {recentTransactions.map((t) => (
-                                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 }}>
-                                            <div>
-                                                <p style={{ fontWeight: 500 }}>{t.description}</p>
-                                                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{t.category} • {formatDate(t.date)}</p>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                                                <span style={{ fontWeight: 600, color: t.type === 'income' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-                                                    {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                                                </span>
-                                                <button onClick={() => openEditModal(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>✏️</button>
-                                                <button onClick={() => handleDeleteTransaction(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-danger)' }}>🗑️</button>
-                                            </div>
-                                        </div>
-                                    ))}
+                <main className="main-content">
+                    {view === 'dashboard' && (
+                        <div id="view-dashboard" className="view active">
+                            <div className="view-header">
+                                <h2>Visão Geral</h2>
+                                <div className="date-range">
+                                    <button className="btn-primary" onClick={openNewModal}>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <line x1="12" y1="5" x2="12" y2="19"/>
+                                            <line x1="5" y1="12" x2="19" y2="12"/>
+                                        </svg>
+                                        Nova Transação
+                                    </button>
+                                    <select className="glass-select" value={dashboardMonth} onChange={(e) => setDashboardMonth(e.target.value)}>
+                                        {monthNames.map((m, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+                                    </select>
+                                    <select className="glass-select" value={dashboardYear} onChange={(e) => setDashboardYear(e.target.value)}>
+                                        {dashboardYears.map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
                                 </div>
-                            )}
-                        </div>
-                    </>
-                )}
+                            </div>
 
-                {view === 'transactions' && (
-                    <div className="card">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <h3 style={{ fontSize: '1.125rem', fontWeight: 600 }}>Todas as Transações</h3>
-                            <button onClick={openNewModal} className="btn-primary" style={{ padding: '10px 16px', fontSize: '0.875rem' }}>+ Nova Transação</button>
+                            <div className="kpi-grid">
+                                <div className="kpi-card glass-card">
+                                    <div className="kpi-icon income">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <line x1="12" y1="19" x2="12" y2="5"/>
+                                            <polyline points="5 12 12 5 19 12"/>
+                                        </svg>
+                                    </div>
+                                    <div className="kpi-content">
+                                        <span className="kpi-label">Entradas</span>
+                                        <span className="kpi-value" style={{ color: 'var(--accent-success)' }}>{formatCurrency(totalIncome)}</span>
+                                    </div>
+                                </div>
+                                <div className="kpi-card glass-card">
+                                    <div className="kpi-icon expense">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <line x1="12" y1="5" x2="12" y2="19"/>
+                                            <polyline points="19 12 12 19 5 12"/>
+                                        </svg>
+                                    </div>
+                                    <div className="kpi-content">
+                                        <span className="kpi-label">Saídas</span>
+                                        <span className="kpi-value" style={{ color: 'var(--accent-danger)' }}>{formatCurrency(totalExpense)}</span>
+                                    </div>
+                                </div>
+                                <div className="kpi-card glass-card">
+                                    <div className="kpi-icon balance">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="12" y1="8" x2="12" y2="12"/>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                        </svg>
+                                    </div>
+                                    <div className="kpi-content">
+                                        <span className="kpi-label">Saldo Atual</span>
+                                        <span className="kpi-value" style={{ color: balance >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{formatCurrency(balance)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="charts-grid">
+                                <div className="chart-card glass-card">
+                                    <h3>Fluxo de Caixa</h3>
+                                    <Bar data={cashflowData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' as const } }, scales: { y: { ticks: { callback: (v) => 'R$ ' + v } } } }} />
+                                </div>
+                                <div className="chart-card glass-card">
+                                    <h3>Por Categoria</h3>
+                                    <Bar data={categoryData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: (v) => 'R$ ' + v } } } }} />
+                                </div>
+                            </div>
                         </div>
-                        {transactions.length === 0 ? (
-                            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>Nenhuma transação</p>
-                        ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                        <th style={{ textAlign: 'left', padding: 12, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Data</th>
-                                        <th style={{ textAlign: 'left', padding: 12, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Descrição</th>
-                                        <th style={{ textAlign: 'left', padding: 12, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Categoria</th>
-                                        <th style={{ textAlign: 'left', padding: 12, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Tipo</th>
-                                        <th style={{ textAlign: 'right', padding: 12, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Valor</th>
-                                        <th style={{ textAlign: 'center', padding: 12, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {transactions.map((t) => (
-                                        <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                            <td style={{ padding: 12 }}>{formatDate(t.date)}</td>
-                                            <td style={{ padding: 12 }}>{t.description}</td>
-                                            <td style={{ padding: 12 }}>{t.category}</td>
-                                            <td style={{ padding: 12 }}><span style={{ padding: '4px 8px', borderRadius: 4, fontSize: '0.75rem', background: t.type === 'income' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: t.type === 'income' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{t.type === 'income' ? 'Entrada' : 'Saída'}</span></td>
-                                            <td style={{ padding: 12, textAlign: 'right', fontWeight: 600, color: t.type === 'income' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>{t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}</td>
-                                            <td style={{ padding: 12, textAlign: 'center' }}>
-                                                <button onClick={() => openEditModal(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', marginRight: 8 }}>✏️</button>
-                                                <button onClick={() => handleDeleteTransaction(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-danger)' }}>🗑️</button>
-                                            </td>
+                    )}
+
+                    {view === 'transactions' && (
+                        <div id="view-transactions" className="view active">
+                            <div className="view-header">
+                                <h2>Transações</h2>
+                                <button className="btn-primary" onClick={openNewModal}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"/>
+                                        <line x1="5" y1="12" x2="19" y2="12"/>
+                                    </svg>
+                                    Nova Transação
+                                </button>
+                            </div>
+
+                            <div className="filters-bar glass-card">
+                                <div className="search-box">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <circle cx="11" cy="11" r="8"/>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                    </svg>
+                                    <input type="text" placeholder="Buscar transações..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
+                                </div>
+                                <div className="filter-group">
+                                    <select className="glass-select" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
+                                        <option value="">Todos os meses</option>
+                                        {monthNames.map((m, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+                                    </select>
+                                    <select className="glass-select" value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
+                                        <option value="">Todos os anos</option>
+                                        {[...new Set(transactions.map(t => new Date(t.date).getFullYear()))].sort((a, b) => b - a).map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                    <select className="glass-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                                        <option value="">Todos os tipos</option>
+                                        <option value="income">Entrada</option>
+                                        <option value="expense">Saída</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="transactions-table glass-card">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Data</th>
+                                            <th>Descrição</th>
+                                            <th>Categoria</th>
+                                            <th>Tipo</th>
+                                            <th>Valor</th>
+                                            <th>Ações</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                )}
-            </main>
+                                    </thead>
+                                    <tbody>
+                                        {pageTransactions.length === 0 ? (
+                                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Nenhuma transação encontrada</td></tr>
+                                        ) : (
+                                            pageTransactions.map(t => (
+                                                <tr key={t.id}>
+                                                    <td>{formatDate(t.date)}</td>
+                                                    <td>{t.description}</td>
+                                                    <td>{t.category}</td>
+                                                    <td><span className={`type-badge ${t.type}`}>{t.type === 'income' ? 'Entrada' : 'Saída'}</span></td>
+                                                    <td className={t.type} style={{ color: t.type === 'income' ? 'var(--accent-success)' : 'var(--accent-danger)', fontWeight: 600 }}>
+                                                        {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                                                    </td>
+                                                    <td>
+                                                        <div className="action-btns">
+                                                            <button className="action-btn" onClick={() => openEditModal(t)} title="Editar">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                                                </svg>
+                                                            </button>
+                                                            <button className="action-btn delete" onClick={() => handleDeleteTransaction(t.id)} title="Excluir">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                    <polyline points="3 6 5 6 21 6"/>
+                                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                                <div className="pagination-container">
+                                    <div className="pagination-info">
+                                        Mostrando {((currentPage - 1) * perPage) + 1}-{Math.min(currentPage * perPage, filteredTransactions.length)} de {filteredTransactions.length} transações
+                                    </div>
+                                    <div className="pagination-controls">
+                                        <div className="pagination-per-page">
+                                            <label>Por página:</label>
+                                            <select className="glass-select" value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setCurrentPage(1); }}>
+                                                <option value="10">10</option>
+                                                <option value="25">25</option>
+                                                <option value="50">50</option>
+                                                <option value="100">100</option>
+                                            </select>
+                                        </div>
+                                        <div className="pagination-pages">
+                                            <button className="page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                            </button>
+                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                let page = i + 1;
+                                                if (totalPages > 5) {
+                                                    if (currentPage > 3) page = currentPage - 2 + i;
+                                                    if (currentPage > totalPages - 2) page = totalPages - 4 + i;
+                                                }
+                                                return <button key={i} className={`page-number ${page === currentPage ? 'active' : ''}`} onClick={() => setCurrentPage(page)}>{page}</button>;
+                                            })}
+                                            <button className="page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </main>
+            </div>
 
-            {showModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div className="card" style={{ width: '100%', maxWidth: 480, margin: 20 }}>
-                        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: 20 }}>{transId ? 'Editar Transação' : 'Nova Transação'}</h3>
-                        <form onSubmit={handleSaveTransaction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: 8 }}>Tipo</label>
-                                <select value={transType} onChange={(e) => handleTransTypeChange(e.target.value as 'income' | 'expense')}>
-                                    <option value="income">Entrada</option>
-                                    <option value="expense">Saída</option>
-                                </select>
+            {showTransModal && (
+                <div className="modal">
+                    <div className="modal-overlay" onClick={() => setShowTransModal(false)} />
+                    <div className="modal-content glass-card">
+                        <div className="modal-header">
+                            <h3>{transId ? 'Editar Transação' : 'Nova Transação'}</h3>
+                            <button className="modal-close" onClick={() => setShowTransModal(false)}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <form id="transaction-form" onSubmit={handleSaveTransaction}>
+                            <input type="hidden" value={transId} />
+                            <div className="form-group">
+                                <label htmlFor="trans-description">Descrição</label>
+                                <input type="text" id="trans-description" value={transDescription} onChange={(e) => setTransDescription(e.target.value)} required placeholder="Ex: Venda de produto" />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: 8 }}>Descrição</label>
-                                <input type="text" value={transDescription} onChange={(e) => setTransDescription(e.target.value)} required placeholder="Descrição" />
+                            <div className="form-group">
+                                <label htmlFor="trans-amount">Valor</label>
+                                <input type="number" id="trans-amount" value={transAmount} onChange={(e) => setTransAmount(e.target.value)} required min="0.01" step="0.01" placeholder="0,00" />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: 8 }}>Valor</label>
-                                <input type="number" step="0.01" value={transAmount} onChange={(e) => setTransAmount(e.target.value)} required placeholder="0.00" />
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label htmlFor="trans-type">Tipo</label>
+                                    <select id="trans-type" value={transType} onChange={(e) => { setTransType(e.target.value as 'income' | 'expense'); setTransCategory(''); }}>
+                                        <option value="income">Entrada</option>
+                                        <option value="expense">Saída</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="trans-category">Categoria</label>
+                                    <select id="trans-category" value={transCategory} onChange={(e) => setTransCategory(e.target.value)} required>
+                                        <option value="">Selecione</option>
+                                        {incomeCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                </div>
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: 8 }}>Categoria</label>
-                                <select value={transCategory} onChange={(e) => setTransCategory(e.target.value)} required>
-                                    <option value="">Selecione</option>
-                                    {incomeCategories.map((c) => (
-                                        <option key={c.id} value={c.name}>{c.name}</option>
-                                    ))}
-                                </select>
+                            <div className="form-group">
+                                <label htmlFor="trans-date">Data</label>
+                                <input type="date" id="trans-date" value={transDate} onChange={(e) => setTransDate(e.target.value)} required />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: 8 }}>Data</label>
-                                <input type="date" value={transDate} onChange={(e) => setTransDate(e.target.value)} required />
+                            <div className="form-group">
+                                <label htmlFor="trans-obs">Observações (opcional)</label>
+                                <textarea id="trans-obs" value={transObs} onChange={(e) => setTransObs(e.target.value)} rows={2} placeholder="Adicione observações..." />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: 8 }}>Observação</label>
-                                <textarea value={transObs} onChange={(e) => setTransObs(e.target.value)} placeholder="Opcional" style={{ resize: 'vertical', minHeight: 60 }} />
-                            </div>
-                            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                                <button type="button" onClick={closeModal} className="btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Salvar</button>
+                            <div className="modal-actions">
+                                <button type="button" className="btn-secondary" onClick={() => setShowTransModal(false)}>Cancelar</button>
+                                <button type="submit" className="btn-primary">Salvar</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {toast && (
-                <div style={{ position: 'fixed', bottom: 24, right: 24, background: toast.type === 'error' ? 'var(--accent-danger)' : 'var(--accent-success)', color: 'white', padding: '12px 20px', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 2000 }}>
-                    {toast.message}
-                </div>
-            )}
+            <div id="toast-container">
+                {toast && (
+                    <div className={`toast ${toast.type}`}>
+                        <span className="toast-message">{toast.message}</span>
+                        <button className="toast-close" onClick={() => setToast(null)}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
