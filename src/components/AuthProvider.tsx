@@ -25,17 +25,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        console.log('AuthProvider: Loading from localStorage');
         const storedToken = localStorage.getItem('fc_token');
         const storedUser = localStorage.getItem('fc_user');
         
         if (storedToken && storedUser) {
+            console.log('AuthProvider: Found stored user');
             setToken(storedToken);
             setUser(JSON.parse(storedUser));
+        } else {
+            console.log('AuthProvider: No stored user');
         }
         setIsLoading(false);
     }, []);
 
     const login = (newToken: string, newUser: User) => {
+        console.log('AuthProvider: login called', newUser.username);
         localStorage.setItem('fc_token', newToken);
         localStorage.setItem('fc_user', JSON.stringify(newUser));
         setToken(newToken);
@@ -43,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const logout = () => {
+        console.log('AuthProvider: logout called');
         localStorage.removeItem('fc_token');
         localStorage.removeItem('fc_user');
         setToken(null);

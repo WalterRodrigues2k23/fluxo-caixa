@@ -1,6 +1,8 @@
 const API_URL = 'https://fluxo-caixa-backend-yh1m.onrender.com/api';
 
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
+    console.log('API Call:', endpoint, options.method || 'GET');
+    
     let token = typeof window !== 'undefined' ? localStorage.getItem('fc_token') : null;
     
     if (token) {
@@ -18,6 +20,7 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
             token = null;
         }
         if (!token) {
+            console.log('Token invalid, clearing localStorage');
             localStorage.removeItem('fc_token');
             localStorage.removeItem('fc_user');
         }
@@ -35,7 +38,10 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
             headers
         });
 
+        console.log('Response:', response.status, response.statusText);
+
         if (response.status === 401) {
+            console.log('Got 401, redirecting to login');
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('fc_token');
                 localStorage.removeItem('fc_user');
