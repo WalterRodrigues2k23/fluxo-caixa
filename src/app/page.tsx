@@ -49,6 +49,7 @@ export default function Home() {
     const [view, setView] = useState('dashboard');
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
     const [authError, setAuthError] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
     const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -127,6 +128,7 @@ export default function Home() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthError('');
+        setAuthLoading(true);
         try {
             const data = await apiCall('/login', {
                 method: 'POST',
@@ -135,18 +137,23 @@ export default function Home() {
             login(data.token, data.user);
         } catch (err: any) {
             setAuthError(err.message);
+        } finally {
+            setAuthLoading(false);
         }
     };
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthError('');
+        setAuthLoading(true);
         if (registerPassword !== registerConfirm) {
             setAuthError('As senhas não coincidem');
+            setAuthLoading(false);
             return;
         }
         if (registerPassword.length < 6) {
             setAuthError('Senha deve ter pelo menos 6 caracteres');
+            setAuthLoading(false);
             return;
         }
         try {
@@ -156,8 +163,10 @@ export default function Home() {
             });
             showToast('Conta criada! Faça login.');
             setAuthMode('login');
+            setAuthLoading(false);
         } catch (err: any) {
             setAuthError(err.message);
+            setAuthLoading(false);
         }
     };
 
