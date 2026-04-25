@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3000 https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net">
+    <title>Fluxo de Caixa | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="chart.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+    <div class="app-container">
+        <div class="bg-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+        </div>
+
+        <div id="auth-screen" class="screen active">
+            <div class="auth-container glass-card">
+                <div class="auth-header">
+                    <div class="logo">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" stroke="url(#gradient)" stroke-width="2"/>
+                            <path d="M16 24L22 30L32 18" stroke="url(#gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <defs>
+                                <linearGradient id="gradient" x1="0" y1="0" x2="48" y2="48">
+                                    <stop offset="0%" stop-color="#00d9ff"/>
+                                    <stop offset="100%" stop-color="#a855f7"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <h1>Fluxo de Caixa</h1>
+                    <p class="subtitle">Gerencie suas finanças com estilo</p>
+                </div>
+
+                <div id="login-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="login-username">Usuário</label>
+                        <input type="text" id="login-username" placeholder="Digite seu usuário" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Senha</label>
+                        <div class="password-input">
+                            <input type="password" id="login-password" placeholder="Digite sua senha" autocomplete="current-password">
+                            <button type="button" class="toggle-password" data-target="login-password">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button id="login-btn" class="btn-primary">Entrar</button>
+                    
+                    <div class="divider">
+                        <span>ou</span>
+                    </div>
+                    
+                    <button id="google-login-btn" class="btn-google">
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        Entrar com Google
+                    </button>
+                    
+                    <p class="auth-switch">Não tem conta? <a href="#" id="show-register">Cadastrar</a></p>
+                </div>
+
+                <div id="register-form" class="auth-form hidden">
+                    <div class="form-group">
+                        <label for="register-name">Nome Completo</label>
+                        <input type="text" id="register-name" placeholder="Seu nome" autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-username">Usuário</label>
+                        <input type="text" id="register-username" placeholder="Escolha um usuário" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">Senha</label>
+                        <div class="password-input">
+                            <input type="password" id="register-password" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+                            <button type="button" class="toggle-password" data-target="register-password">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-confirm">Confirmar Senha</label>
+                        <input type="password" id="register-confirm" placeholder="Repita a senha" autocomplete="new-password">
+                    </div>
+                    <button id="register-btn" class="btn-primary">Cadastrar</button>
+                    <p class="auth-switch">Já tem conta? <a href="#" id="show-login">Entrar</a></p>
+                </div>
+
+                <div id="auth-error" class="error-message hidden"></div>
+            </div>
+        </div>
+
+        <div id="app-screen" class="screen">
+            <header class="app-header glass-card">
+                <div class="header-left">
+                    <button id="menu-toggle" class="icon-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="6" x2="21" y2="6"/>
+                            <line x1="3" y1="12" x2="21" y2="12"/>
+                            <line x1="3" y1="18" x2="21" y2="18"/>
+                        </svg>
+                    </button>
+                    <h1 class="app-title">Fluxo de Caixa Ideal</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-menu">
+                        <button id="user-btn" class="user-btn">
+                            <div class="user-avatar" id="user-avatar">U</div>
+                            <span id="user-name">Usuário</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </button>
+                        <div class="user-dropdown glass-card hidden" id="user-dropdown">
+                            <button id="logout-btn" class="dropdown-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                                Sair
+                            </button>
+                            <button id="admin-btn" class="dropdown-item hidden">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="3"/>
+                                    <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                                </svg>
+                                Admin
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <aside id="sidebar" class="sidebar glass-card">
+                <nav class="sidebar-nav">
+                    <button class="nav-item active" data-view="dashboard">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                        </svg>
+                        <span>Dashboard</span>
+                    </button>
+                    <button class="nav-item" data-view="transactions">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="1" x2="12" y2="23"/>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                        </svg>
+                        <span>Transações</span>
+                    </button>
+                    <button class="nav-item" data-view="forecast">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        <span>Previsão</span>
+                    </button>
+                    <button class="nav-item" data-view="reports">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <span>Relatórios</span>
+                    </button>
+                </nav>
+            </aside>
+            <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+            <main class="main-content">
+                <div id="view-dashboard" class="view active">
+                    <div class="view-header">
+                        <h2>Visão Geral</h2>
+                        <div class="date-range">
+                            <button class="btn-primary" id="add-transaction-btn-dashboard">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                Nova Transação
+                            </button>
+                            <select id="dashboard-month" class="glass-select">
+                                <option value="01">Janeiro</option>
+                                <option value="02">Fevereiro</option>
+                                <option value="03">Março</option>
+                                <option value="04">Abril</option>
+                                <option value="05">Maio</option>
+                                <option value="06">Junho</option>
+                                <option value="07">Julho</option>
+                                <option value="08">Agosto</option>
+                                <option value="09">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                            <select id="dashboard-year" class="glass-select">
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card glass-card">
+                            <div class="kpi-icon income">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="19" x2="12" y2="5"/>
+                                    <polyline points="5 12 12 5 19 12"/>
+                                </svg>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">Entradas</span>
+                                <span class="kpi-value" id="kpi-income">R$ 0,00</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass-card">
+                            <div class="kpi-icon expense">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <polyline points="19 12 12 19 5 12"/>
+                                </svg>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">Saídas</span>
+                                <span class="kpi-value" id="kpi-expense">R$ 0,00</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass-card">
+                            <div class="kpi-icon balance">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" y1="8" x2="12" y2="12"/>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">Saldo Atual</span>
+                                <span class="kpi-value" id="kpi-balance">R$ 0,00</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass-card">
+                            <div class="kpi-icon forecast">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                                    <polyline points="17 6 23 6 23 12"/>
+                                </svg>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">Projeção 30d</span>
+                                <span class="kpi-value" id="kpi-forecast">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid" id="indicator-grid" style="margin-bottom:16px">
+                        <div class="indicator-card glass-card">
+                            <div class="indicator-header">
+                                <span class="indicator-title">Indicador de Saúde Financeira</span>
+                            </div>
+                            <div class="indicator-body">
+                                <div class="indicator-chart-wrap">
+                                    <canvas id="indicator-chart"></canvas>
+                                </div>
+                                <div class="indicator-legend" id="indicator-legend"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card glass-card">
+                            <h3>Fluxo de Caixa</h3>
+                            <canvas id="cashflow-chart"></canvas>
+                        </div>
+                        <div class="chart-card glass-card">
+                            <h3>Saldo por Período</h3>
+                            <canvas id="balance-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="charts-grid" style="margin-top:16px">
+                        <div class="chart-card glass-card">
+                            <h3>Por Categoria</h3>
+                            <canvas id="category-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="alerts-section" id="alerts-section"></div>
+                </div>
+
+                <div id="view-transactions" class="view">
+                    <div class="view-header">
+                        <h2>Transações</h2>
+                        <div class="header-actions">
+                            <div class="kpi-card glass-card mini-kpi-card">
+                                <div class="kpi-icon income">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                                    </svg>
+                                </div>
+                                <div class="kpi-content">
+                                    <span class="kpi-label">Entradas</span>
+                                    <span class="kpi-value" id="kpi-income-trans">R$ 0,00</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass-card mini-kpi-card">
+                                <div class="kpi-icon expense">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+                                    </svg>
+                                </div>
+                                <div class="kpi-content">
+                                    <span class="kpi-label">Saídas</span>
+                                    <span class="kpi-value" id="kpi-expense-trans">R$ 0,00</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass-card mini-kpi-card">
+                                <div class="kpi-icon balance">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                                    </svg>
+                                </div>
+                                <div class="kpi-content">
+                                    <span class="kpi-label">Saldo</span>
+                                    <span class="kpi-value" id="kpi-balance-trans">R$ 0,00</span>
+                                </div>
+                            </div>
+                            <button class="btn-primary" id="add-transaction-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                Nova Transação
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="filters-bar glass-card">
+                        <div class="search-box">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                            <input type="text" id="search-input" placeholder="Buscar transações...">
+                        </div>
+                        <div class="filter-group">
+                            <select id="filter-month" class="glass-select">
+                                <option value="">Todos os meses</option>
+                                <option value="01">Janeiro</option>
+                                <option value="02">Fevereiro</option>
+                                <option value="03">Março</option>
+                                <option value="04">Abril</option>
+                                <option value="05">Maio</option>
+                                <option value="06">Junho</option>
+                                <option value="07">Julho</option>
+                                <option value="08">Agosto</option>
+                                <option value="09">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                            <select id="filter-year" class="glass-select">
+                                <option value="">Todos os anos</option>
+                            </select>
+                            <select id="filter-type" class="glass-select">
+                                <option value="">Todos os tipos</option>
+                                <option value="income">Entrada</option>
+                                <option value="expense">Saída</option>
+                            </select>
+                            <select id="filter-category" class="glass-select">
+                                <option value="">Todas categorias</option>
+                            </select>
+                        </div>
+                        <button class="btn-secondary" id="clear-filters">Limpar</button>
+                    </div>
+
+                    <div class="transactions-table glass-card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Tipo</th>
+                                    <th>Valor</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-table-body"></tbody>
+                        </table>
+                        <div class="table-empty hidden" id="table-empty">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                <line x1="12" y1="1" x2="12" y2="23"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                            <p>Nenhuma transação encontrada</p>
+                        </div>
+                        <div class="pagination-container">
+                            <div class="pagination-info">
+                                Mostrando <span id="pagination-start">0</span>-<span id="pagination-end">0</span> de <span id="pagination-total">0</span> transações
+                            </div>
+                            <div class="pagination-controls">
+                                <div class="pagination-per-page">
+                                    <label for="per-page">Por página:</label>
+                                    <select id="per-page" class="glass-select">
+                                        <option value="10">10</option>
+                                        <option value="25" selected>25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                    </select>
+                                </div>
+                                <div class="pagination-pages">
+                                    <button class="page-btn" id="prev-page" disabled>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="15 18 9 12 15 6"/>
+                                        </svg>
+                                    </button>
+                                    <div id="pagination-numbers"></div>
+                                    <button class="page-btn" id="next-page">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="9 18 15 12 9 6"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-forecast" class="view">
+                    <div class="view-header">
+                        <h2>Previsão de Caixa</h2>
+                    </div>
+
+                    <div class="forecast-grid">
+                        <div class="forecast-card glass-card">
+                            <h3>Projeção 30 dias</h3>
+                            <div class="forecast-value" id="forecast-30">R$ 0,00</div>
+                            <div class="forecast-trend" id="forecast-30-trend"></div>
+                        </div>
+                        <div class="forecast-card glass-card">
+                            <h3>Projeção 60 dias</h3>
+                            <div class="forecast-value" id="forecast-60">R$ 0,00</div>
+                            <div class="forecast-trend" id="forecast-60-trend"></div>
+                        </div>
+                        <div class="forecast-card glass-card">
+                            <h3>Projeção 90 dias</h3>
+                            <div class="forecast-value" id="forecast-90">R$ 0,00</div>
+                            <div class="forecast-trend" id="forecast-90-trend"></div>
+                        </div>
+                    </div>
+
+                    <div class="forecast-chart glass-card">
+                        <h3>Projeção Diária</h3>
+                        <canvas id="forecast-chart"></canvas>
+                    </div>
+
+                    <div class="forecast-info glass-card">
+                        <h3>Sobre as Projeções</h3>
+                        <p>As projeções são calculadas baseada na média móvel dos últimos 90 dias, considerando sazonalidade e padrões de despesa.</p>
+                    </div>
+                </div>
+
+                <div id="view-reports" class="view">
+                    <div class="view-header">
+                        <h2>Relatórios</h2>
+                        <div class="report-actions">
+                            <select id="report-month" class="glass-select"></select>
+                            <button class="btn-secondary" id="export-xlsx">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Exportar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="reports-grid">
+                        <div class="report-card glass-card">
+                            <h3>Resumo do Mês</h3>
+                            <div class="report-summary" id="report-summary"></div>
+                        </div>
+                        <div class="report-card glass-card report-full-width">
+                            <h3>Detalhes de Entradas <span class="detail-total" id="income-total-label"></span></h3>
+                            <div class="detail-table-container">
+                                <table class="detail-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Data</th>
+                                            <th>Descrição</th>
+                                            <th>Categoria</th>
+                                            <th>Valor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="income-detail-body"></tbody>
+                                </table>
+                            </div>
+                            <div class="pagination-container report-pagination">
+                                <div class="pagination-info">
+                                    Mostrando <span id="income-start">0</span>-<span id="income-end">0</span> de <span id="income-total">0</span>
+                                </div>
+                                <div class="pagination-controls">
+                                    <div class="pagination-per-page">
+                                        <label for="income-per-page">Por página:</label>
+                                        <select id="income-per-page" class="glass-select">
+                                            <option value="20" selected>20</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                    </div>
+                                    <div class="pagination-pages">
+                                        <button class="page-btn" id="income-first" title="Primeira">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+                                        </button>
+                                        <button class="page-btn" id="income-prev" title="Anterior">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                        </button>
+                                        <div id="income-numbers"></div>
+                                        <button class="page-btn" id="income-next" title="Próxima">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <button class="page-btn" id="income-last" title="Última">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="report-card glass-card report-full-width">
+                            <h3>Detalhes de Saídas <span class="detail-total" id="expense-total-label"></span></h3>
+                            <div class="detail-table-container">
+                                <table class="detail-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Data</th>
+                                            <th>Descrição</th>
+                                            <th>Categoria</th>
+                                            <th>Valor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="expense-detail-body"></tbody>
+                                </table>
+                            </div>
+                            <div class="pagination-container report-pagination">
+                                <div class="pagination-info">
+                                    Mostrando <span id="expense-start">0</span>-<span id="expense-end">0</span> de <span id="expense-total">0</span>
+                                </div>
+                                <div class="pagination-controls">
+                                    <div class="pagination-per-page">
+                                        <label for="expense-per-page">Por página:</label>
+                                        <select id="expense-per-page" class="glass-select">
+                                            <option value="20" selected>20</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                    </div>
+                                    <div class="pagination-pages">
+                                        <button class="page-btn" id="expense-first" title="Primeira">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+                                        </button>
+                                        <button class="page-btn" id="expense-prev" title="Anterior">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                        </button>
+                                        <div id="expense-numbers"></div>
+                                        <button class="page-btn" id="expense-next" title="Próxima">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <button class="page-btn" id="expense-last" title="Última">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-admin" class="view">
+                    <div class="view-header">
+                        <h2>Administração</h2>
+                    </div>
+
+                    <div class="admin-grid">
+                        <div class="admin-section glass-card">
+                            <h3>Usuários do Sistema</h3>
+                            <div class="users-list" id="users-list"></div>
+                            <button class="btn-primary" id="add-user-btn">Adicionar Usuário</button>
+                        </div>
+                        <div class="admin-section glass-card">
+                            <h3>Gerenciar Categorias</h3>
+                            <div class="categories-section">
+                                <div class="category-group">
+                                    <h4>Entradas</h4>
+                                    <div class="category-list" id="income-categories"></div>
+                                    <button class="btn-text" id="add-income-category">+ Nova Categoria</button>
+                                </div>
+                                <div class="category-group">
+                                    <h4>Saídas</h4>
+                                    <div class="category-list" id="expense-categories"></div>
+                                    <button class="btn-text" id="add-expense-category">+ Nova Categoria</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="admin-section glass-card">
+                            <h3>Saldo Inicial e Dívidas</h3>
+                            <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px">Configure o saldo inicial e dívidas anteriores para um fluxo de caixa mais preciso.</p>
+                            <div class="form-group">
+                                <label for="initial-balance">Saldo Inicial (R$)</label>
+                                <input type="number" id="initial-balance" class="glass-input" step="0.01" placeholder="0,00">
+                            </div>
+                            <div class="form-group">
+                                <label for="previous-debts">Dívidas Anteriores (R$)</label>
+                                <input type="number" id="previous-debts" class="glass-input" step="0.01" placeholder="0,00">
+                            </div>
+                            <button class="btn-primary" id="save-initial-data">Salvar</button>
+                        </div>
+                        <div class="admin-section glass-card">
+                            <h3>Dados do Sistema</h3>
+                            <div class="system-info">
+                                <p>Total de transações: <span id="total-transactions">0</span></p>
+                                <p>Último backup: <span id="last-backup">-</span></p>
+                            </div>
+                            <button class="btn-secondary" id="backup-btn">Fazer Backup</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div id="transaction-modal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content glass-card">
+                <div class="modal-header">
+                    <h3 id="modal-title">Nova Transação</h3>
+                    <button class="modal-close" id="close-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <form id="transaction-form">
+                    <input type="hidden" id="transaction-id">
+                    <div class="form-group">
+                        <label for="trans-description">Descrição</label>
+                        <input type="text" id="trans-description" required placeholder="Ex: Venda de produto">
+                    </div>
+                    <div class="form-group">
+                        <label for="trans-amount">Valor</label>
+                        <input type="number" id="trans-amount" required min="0.01" step="0.01" placeholder="0,00">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="trans-type">Tipo</label>
+                            <select id="trans-type" required>
+                                <option value="income">Entrada</option>
+                                <option value="expense">Saída</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="trans-category">Categoria</label>
+                            <div class="category-select-wrapper">
+                                <select id="trans-category" required></select>
+                                <div class="category-actions">
+                                    <button type="button" class="btn-icon" id="add-category-btn" title="Nova Categoria">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="12" y1="5" x2="12" y2="19"/>
+                                            <line x1="5" y1="12" x2="19" y2="12"/>
+                                        </svg>
+                                    </button>
+                                    <button type="button" class="btn-icon" id="edit-category-btn" title="Editar Categoria">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                        </svg>
+                                    </button>
+                                    <button type="button" class="btn-icon" id="delete-category-btn" title="Excluir Categoria">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="3 6 5 6 21 6"/>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="trans-date">Data</label>
+                        <input type="date" id="trans-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="trans-obs">Observações (opcional)</label>
+                        <textarea id="trans-obs" rows="2" placeholder="Adicione observações..."></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="cancel-transaction">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="user-modal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content glass-card">
+                <div class="modal-header">
+                    <h3>Adicionar Usuário</h3>
+                    <button class="modal-close" id="close-user-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <form id="user-form">
+                    <div class="form-group">
+                        <label for="new-user-name">Nome</label>
+                        <input type="text" id="new-user-name" required placeholder="Nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-user-username">Usuário</label>
+                        <input type="text" id="new-user-username" required placeholder="Nome de usuário">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-user-password">Senha</label>
+                        <input type="password" id="new-user-password" required minlength="6" placeholder="Mínimo 6 caracteres">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-user-role">Tipo</label>
+                        <select id="new-user-role" required>
+                            <option value="user">Usuário</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="cancel-user">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="delete-modal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content glass-card modal-sm">
+                <div class="modal-header">
+                    <h3>Confirmar Exclusão</h3>
+                </div>
+                <p class="delete-message">Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.</p>
+                <div class="modal-actions">
+                    <button class="btn-secondary" id="cancel-delete">Cancelar</button>
+                    <button class="btn-danger" id="confirm-delete">Excluir</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container"></div>
+
+        <div id="category-modal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content glass-card modal-sm">
+                <div class="modal-header">
+                    <h3 id="category-modal-title">Nova Categoria</h3>
+                    <button class="modal-close" id="close-category-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <form id="category-form">
+                    <div class="form-group">
+                        <label for="category-type">Tipo</label>
+                        <select id="category-type" required>
+                            <option value="income">Entrada</option>
+                            <option value="expense">Saída</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="category-name">Nome</label>
+                        <input type="text" id="category-name" required placeholder="Nome da categoria">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="cancel-category">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script src="security.js"></script>
+    <script src="app.js?v=2"></script>
+</body>
+</html>
